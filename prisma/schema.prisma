@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum RoleCode {
+  ADMIN
+  SUPERVISOR
+  AGENT
+}
+
+model Role {
+  id    String   @id @default(cuid())
+  code  RoleCode @unique
+  name  String
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id             String       @id @default(cuid())
+  publicId       String       @unique @default(uuid()) @map("public_id")
+  email          String       @unique
+  username       String       @unique
+  passwordHash   String       @map("password_hash")
+  phone          String?
+  fullName       String       @map("full_name")
+  nationalIdEnc  String?      @map("national_id_enc")
+  gender         String?
+  language       String       @default("English")
+  agentCode      String?      @unique @map("agent_code")
+  outletName     String?      @map("outlet_name")
+  outletCode     String?      @map("outlet_code")
+  pinHash        String?      @map("pin_hash")
+  status         UserStatus   @default(ACTIVE)
+  roleId         String       @map("role_id")
+  role           Role         @relation(fields: [roleId], references: [id])
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  refreshTokens  RefreshToken[]
+  accounts       Account[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique @map("token_hash")
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  replacedBy String?   @map("replaced_by")
+  deviceId   String?   @map("device_id")
+  deviceInfo String?   @map("device_info")
+  ipAddress  String?   @map("ip_address")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Account {
+  id           String   @id @default(cuid())
+  publicId     String   @unique @default(uuid()) @map("public_id")
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   @default("OPERATING")
+  currency     String   @default("RWF")
+  balanceMinor BigInt   @default(0) @map("balance_minor")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, type])
+  @@map("accounts")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  publicId String   @unique @default(uuid()) @map("public_id")
+  userId   String?  @map("user_id")
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action   String
+  resource String?
+  status   String
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
