@@ -55,6 +55,14 @@ function generateTemporaryPassword(): string {
   return `${random}${alphabet[randomInt(0, alphabet.length)]}${symbols[randomInt(0, symbols.length)]}9`;
 }
 
+function encryptNationalIdRequired(nationalId: string): string {
+  const encrypted = encryptField(nationalId);
+  if (!encrypted) {
+    throw createError(500, 'National ID encryption is not configured. Set ENCRYPTION_KEY_BASE64.');
+  }
+  return encrypted;
+}
+
 export async function listUsers(req: Request, res: Response): Promise<void> {
   const actor = req.authUser;
   if (!actor) {
@@ -110,7 +118,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
   const temporaryPassword = generateTemporaryPassword();
   const env = getEnv();
   const passwordHash = await bcrypt.hash(temporaryPassword + env.PASSWORD_PEPPER, env.BCRYPT_ROUNDS);
-  const nationalIdEnc = encryptField(payload.nationalID);
+  const nationalIdEnc = encryptNationalIdRequired(payload.nationalID);
 
   let created;
   try {
@@ -121,7 +129,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
         username,
         phone: payload.phone,
         passwordHash,
-        nationalIdEnc: nationalIdEnc ?? null,
+        nationalIdEnc,
         gender: payload.gender ?? null,
         language: payload.language ?? 'English',
         agentCode: payload.role === 'agent' ? payload.agentCode?.trim() ?? null : null,
@@ -240,7 +248,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   if (payload.language !== undefined) data.language = payload.language;
   if (payload.agentCode !== undefined) data.agentCode = payload.agentCode;
   if (payload.nationalID !== undefined) {
-    data.nationalIdEnc = encryptField(payload.nationalID) ?? null;
+    data.nationalIdEnc = encryptNationalIdRequired(payload.nationalID);
   }
   if (payload.role !== undefined) {
     data.role = { connect: { code: clientRoleToDb(payload.role) } };

@@ -524,3 +524,68 @@ export async function meAuthenticated(req: Request, res: Response): Promise<void
   }
   res.status(200).json({ data: toAuthUserResponse(user) });
 }
+
+export async function changePassword(req: Request, res: Response): Promise<void> {
+  const env = getEnv();
+  const { ip, userAgent } = getClientMeta(req);
+  const authUser = req.authUser;
+  if (!authUser) {
+    throw createError(401, 'Unauthorized');
+  }
+
+  const { currentPassword, newPassword } = req.body as {
+    currentPassword: string;
+    newPassword: string;
+  };
+
+  if (currentPassword === newPassword) {
+    throw createError(400, 'New password must be different from current password');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: authUser.id },
+  });
+  if (!user || user.status !== 'ACTIVE') {
+    throw createError(401, 'Unauthorized');
+  }
+
+  const currentMatches = await bcrypt.compare(currentPassword + env.PASSWORD_PEPPER, user.passwordHash);
+  if (!currentMatches) {
+    await writeAudit({
+      userId: user.id,
+      action: 'AUTH_CHANGE_PASSWORD',
+      resource: 'password',
+      status: 'FAILURE',
+      ipAddress: ip,
+      userAgent,
+      metadata: { reason: 'invalid_current_password' },
+    });
+    throw createError(400, 'Current password is incorrect');
+  }
+
+  const nextHash = await bcrypt.hash(newPassword + env.PASSWORD_PEPPER, env.BCRYPT_ROUNDS);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: nextHash },
+    }),
+    prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+  ]);
+
+  res.clearCookie(env.REFRESH_COOKIE_NAME, cookieBase());
+
+  await writeAudit({
+    userId: user.id,
+    action: 'AUTH_CHANGE_PASSWORD',
+    resource: 'password',
+    status: 'SUCCESS',
+    ipAddress: ip,
+    userAgent,
+  });
+
+  res.status(200).json({ message: 'Password changed successfully. Please log in again.' });
+}

@@ -4,6 +4,7 @@ import { getEnv } from '../../config/env';
 import { asyncHandler } from '../../middleware/async-handler';
 import { requireAuth } from '../../middleware/require-auth';
 import {
+  changePasswordSchema,
   loginSchema,
   parseBody,
   resendOtpSchema,
@@ -69,5 +70,15 @@ authRouter.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     await authService.meAuthenticated(req, res);
+  }),
+);
+
+authRouter.post(
+  '/change-password',
+  requireAuth,
+  authLimiter,
+  asyncHandler(async (req, res) => {
+    req.body = parseBody(changePasswordSchema, req.body);
+    await authService.changePassword(req, res);
   }),
 );
