@@ -31,15 +31,15 @@ export async function sendSmsViaBeem(toPhone: string, message: string): Promise<
     return { ok: true, status: 200 };
   }
 
-  const key = env.BEEM_API_KEY;
-  const secret = env.BEEM_API_SECRET;
-  if (!key || !secret) {
+  const username = env.BEEM_USERNAME;
+  const password = env.BEEM_PASSWORD;
+  if (!username || !password) {
     log.error('Beem credentials missing');
     return { ok: false, status: 500, error: 'SMS provider not configured' };
   }
 
   const dest = normalizeRwandaMsisdn(toPhone);
-  const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+  const auth = Buffer.from(`${username}:${password}`).toString('base64');
 
   const body = {
     source_addr: env.BEEM_SENDER_ID,

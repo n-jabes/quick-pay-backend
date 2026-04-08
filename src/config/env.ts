@@ -42,8 +42,8 @@ const envSchema = z.object({
   ENCRYPTION_KEY_BASE64: z.string().optional(),
 
   BEEM_SMS_URL: z.string().url().default('https://apisms.beem.africa/v1/send'),
-  BEEM_API_KEY: z.string().optional(),
-  BEEM_API_SECRET: z.string().optional(),
+  BEEM_USERNAME: z.string().optional(),
+  BEEM_PASSWORD: z.string().optional(),
   BEEM_SENDER_ID: z.string().default('INFO'),
   BEEM_SMS_DISABLED: z
     .string()
