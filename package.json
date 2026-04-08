@@ -2,7 +2,7 @@
   "name": "quickpay-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Solektra Quick Pay — production API (Express, Prisma, PostgreSQL, Redis)",
+  "description": "Solektra Quick Pay \u2014 production API (Express, Prisma, PostgreSQL, Redis)",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -39,6 +39,7 @@
     "ioredis": "^5.4.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2",
     "pg": "^8.20.0",
     "pino": "^9.6.0",
     "pino-http": "^10.3.0",
