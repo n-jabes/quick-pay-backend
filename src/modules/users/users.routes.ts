@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../middleware/async-handler';
 import { requireAuth } from '../../middleware/require-auth';
-import { createUserSchema, parseInput, updateUserSchema, updateUserStatusSchema, userIdParamSchema } from './users.schemas';
+import { createUserSchema, parseInput, updateOwnProfileSchema, updateUserSchema, updateUserStatusSchema, userIdParamSchema } from './users.schemas';
 import * as usersService from './users.service';
 
 export const usersRouter = Router();
@@ -20,6 +20,14 @@ usersRouter.post(
   asyncHandler(async (req, res) => {
     req.body = parseInput(createUserSchema, req.body);
     await usersService.createUser(req, res);
+  }),
+);
+
+usersRouter.patch(
+  '/me',
+  asyncHandler(async (req, res) => {
+    req.body = parseInput(updateOwnProfileSchema, req.body);
+    await usersService.updateOwnProfile(req, res);
   }),
 );
 

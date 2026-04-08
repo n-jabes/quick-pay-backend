@@ -338,3 +338,59 @@ export async function updateUserStatus(req: Request, res: Response): Promise<voi
   res.status(200).json({ data: toAuthUserResponse(updated) });
 }
 
+export async function updateOwnProfile(req: Request, res: Response): Promise<void> {
+  const actor = req.authUser;
+  if (!actor) {
+    throw createError(401, 'Unauthorized');
+  }
+
+  const payload = req.body as {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    gender?: string;
+    language?: string;
+    nationalID?: string;
+  };
+  const { ip, userAgent } = getClientMeta(req);
+
+  const data: Record<string, unknown> = {};
+  if (payload.fullName !== undefined) data.fullName = payload.fullName;
+  if (payload.email !== undefined) {
+    if (actor.role === 'agent') {
+      throw createError(403, 'Agents are not allowed to change email');
+    }
+    data.email = payload.email.toLowerCase();
+  }
+  if (payload.phone !== undefined) data.phone = payload.phone;
+  if (payload.gender !== undefined) data.gender = payload.gender;
+  if (payload.language !== undefined) data.language = payload.language;
+  if (payload.nationalID !== undefined) data.nationalIdEnc = encryptNationalIdRequired(payload.nationalID);
+
+  let updated;
+  try {
+    updated = await prisma.user.update({
+      where: { id: actor.id },
+      data,
+      include: { role: true },
+    });
+  } catch {
+    throw createError(400, 'Unable to update profile');
+  }
+
+  await writeAudit({
+    userId: actor.id,
+    action: 'USER_PROFILE_UPDATED',
+    resource: 'user',
+    status: 'SUCCESS',
+    ipAddress: ip,
+    userAgent,
+    metadata: {
+      actorPublicId: actor.publicId,
+      changes: Object.keys(data),
+    },
+  });
+
+  res.status(200).json({ data: toAuthUserResponse(updated) });
+}
+
