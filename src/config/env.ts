@@ -34,7 +34,16 @@ const envSchema = z.object({
 
   OTP_TTL_SECONDS: z.coerce.number().min(60).max(600).default(180),
   OTP_MAX_ATTEMPTS: z.coerce.number().min(1).max(20).default(5),
+  OTP_DELIVERY_CHANNEL: z.enum(['sms', 'email']).default('sms'),
   OTP_HMAC_SECRET: z.string().min(32),
+
+  OTP_EMAIL_FROM: z.string().optional(),
+  OTP_EMAIL_SUBJECT: z.string().default('Your Quick Pay verification code'),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_OTP_DISABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
 
   BCRYPT_ROUNDS: z.coerce.number().min(10).max(14).default(12),
   PASSWORD_PEPPER: z.string().optional().default(''),

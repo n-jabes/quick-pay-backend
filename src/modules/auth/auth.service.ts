@@ -13,6 +13,7 @@ import {
   signAccessToken,
 } from '../../lib/tokens';
 import { sendSmsViaBeem } from '../../integrations/beem/beem-sms.service';
+import { sendOtpViaEmail } from '../../integrations/email/resend-email.service';
 import { writeAudit } from '../audit/audit.service';
 import { toAuthUserResponse, roleToClient } from './user-mapper';
 
@@ -48,6 +49,24 @@ function getClientMeta(req: Request) {
     null;
   const userAgent = req.get('user-agent') ?? null;
   return { deviceId, deviceInfo, ip, userAgent };
+}
+
+async function sendOtpForUser(user: { phone: string | null; email: string }, otp: string): Promise<boolean> {
+  const env = getEnv();
+  const message = `Your Quick Pay verification code is ${otp}. It expires in ${env.OTP_TTL_SECONDS} seconds.`;
+
+  if (env.OTP_DELIVERY_CHANNEL === 'email') {
+    const emailResult = await sendOtpViaEmail(user.email, otp);
+    return emailResult.ok;
+  }
+
+  const phoneDigits = user.phone?.replace(/\D/g, '') ?? '';
+  if (phoneDigits.length < 9) {
+    return false;
+  }
+
+  const smsResult = await sendSmsViaBeem(user.phone as string, message);
+  return smsResult.ok || Boolean(env.BEEM_SMS_DISABLED);
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
@@ -99,8 +118,15 @@ export async function login(req: Request, res: Response): Promise<void> {
     throw createError(401, 'Invalid credentials');
   }
 
-  if (!user.phone || user.phone.replace(/\d/g, '').length < 9) {
-    throw createError(400, 'User phone is not configured for OTP delivery');
+  if (env.OTP_DELIVERY_CHANNEL === 'sms') {
+    const phoneDigits = user.phone?.replace(/\D/g, '') ?? '';
+    if (phoneDigits.length < 9) {
+      throw createError(400, 'User phone is not configured for OTP delivery');
+    }
+  }
+
+  if (env.OTP_DELIVERY_CHANNEL === 'email' && !user.email) {
+    throw createError(400, 'User email is not configured for OTP delivery');
   }
 
   const otp = generateNumericOtp(6);
@@ -121,12 +147,8 @@ export async function login(req: Request, res: Response): Promise<void> {
     env.OTP_TTL_SECONDS,
   );
 
-  const sms = await sendSmsViaBeem(
-    user.phone,
-    `Your Quick Pay verification code is ${otp}. It expires in ${env.OTP_TTL_SECONDS} seconds.`,
-  );
-
-  if (!sms.ok && !env.BEEM_SMS_DISABLED) {
+  const sent = await sendOtpForUser({ phone: user.phone, email: user.email }, otp);
+  if (!sent) {
     await redis.del(otpRedisKey(sessionId));
     throw createError(502, 'Unable to send verification code. Try again later.');
   }
@@ -306,7 +328,7 @@ export async function resendOtp(req: Request, res: Response): Promise<void> {
     where: { id: state.userId },
     include: { role: true },
   });
-  if (!user || user.status !== 'ACTIVE' || !user.phone) {
+  if (!user || user.status !== 'ACTIVE') {
     throw createError(401, 'Invalid session');
   }
 
@@ -320,12 +342,8 @@ export async function resendOtp(req: Request, res: Response): Promise<void> {
 
   await redis.set(key, JSON.stringify(next), 'EX', env.OTP_TTL_SECONDS);
 
-  const sms = await sendSmsViaBeem(
-    user.phone,
-    `Your Quick Pay verification code is ${otp}. It expires in ${env.OTP_TTL_SECONDS} seconds.`,
-  );
-
-  if (!sms.ok && !env.BEEM_SMS_DISABLED) {
+  const sent = await sendOtpForUser({ phone: user.phone, email: user.email }, otp);
+  if (!sent) {
     throw createError(502, 'Unable to send verification code. Try again later.');
   }
 
