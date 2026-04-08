@@ -31,6 +31,15 @@ export const createUserSchema = z.object({
   agentCode: z.string().trim().min(2).max(40).nullable().optional(),
 });
 
+export const updateOwnProfileSchema = z.object({
+  fullName: z.string().trim().min(2).max(120).optional(),
+  email: z.string().trim().email().optional(),
+  phone: z.string().trim().min(6).max(30).optional(),
+  gender: z.string().trim().min(1).max(30).optional(),
+  language: z.string().trim().min(1).max(40).optional(),
+  nationalID: z.string().trim().min(2).max(120).optional(),
+});
+
 export function parseInput<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
   if (!result.success) {
