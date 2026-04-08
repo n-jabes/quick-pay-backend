@@ -20,6 +20,7 @@ import {
   verifyOtpSchema,
 } from './modules/auth/auth.schemas';
 import * as authService from './modules/auth/auth.service';
+import { usersRouter } from './modules/users/users.routes';
 
 export function createApp(): express.Application {
   const env = getEnv();
@@ -60,6 +61,7 @@ export function createApp(): express.Application {
   const prefix = env.API_PREFIX.replace(/\/$/, '');
 
   app.use(`${prefix}/auth`, authRouter);
+  app.use(`${prefix}/users`, usersRouter);
 
   // Frontend compatibility (Next.js calls these at API root)
   app.post(

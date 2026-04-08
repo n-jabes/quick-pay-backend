@@ -39,6 +39,7 @@ const envSchema = z.object({
 
   OTP_EMAIL_FROM: z.string().optional(),
   OTP_EMAIL_SUBJECT: z.string().default('Your Quick Pay verification code'),
+  USER_CREDENTIALS_EMAIL_SUBJECT: z.string().default('Your Quick Pay account credentials'),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_OTP_DISABLED: z
     .string()
