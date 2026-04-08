@@ -24,6 +24,8 @@ export function toAuthUserResponse(user: UserWithRole) {
     gender: user.gender ?? '',
     role: roleToClient(user.role.code),
     ...(user.agentCode ? { agentCode: user.agentCode } : {}),
+    ...(user.outletName ? { outletName: user.outletName } : {}),
+    ...(user.outletCode ? { outletCode: user.outletCode } : {}),
     status: user.status,
     language: user.language,
     createdAt: user.createdAt.toISOString(),

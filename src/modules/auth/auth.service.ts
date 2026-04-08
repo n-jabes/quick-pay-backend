@@ -69,6 +69,58 @@ async function sendOtpForUser(user: { phone: string | null; email: string }, otp
   return smsResult.ok || Boolean(env.BEEM_SMS_DISABLED);
 }
 
+function dispatchOtpAsync(params: {
+  user: { id: string; phone: string | null; email: string };
+  otp: string;
+  sessionKey: string;
+  ip: string | null;
+  userAgent: string | null;
+  deviceId: string | null;
+  deviceInfo: string | null;
+}): void {
+  const { user, otp, sessionKey, ip, userAgent, deviceId, deviceInfo } = params;
+  const maxAttempts = 3;
+  const retryDelaysMs = [500, 1500, 3000];
+
+  void (async () => {
+    const redis = getRedis();
+    let sent = false;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      sent = await sendOtpForUser({ phone: user.phone, email: user.email }, otp);
+      if (sent) break;
+      if (attempt < maxAttempts) {
+        const delayMs = retryDelaysMs[attempt - 1] ?? 1000;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    if (!sent) {
+      await redis.del(sessionKey);
+      await writeAudit({
+        userId: user.id,
+        action: 'AUTH_LOGIN_OTP_SEND_FAILED',
+        resource: 'otp',
+        status: 'FAILURE',
+        ipAddress: ip,
+        userAgent,
+        metadata: { attempts: maxAttempts },
+      });
+      return;
+    }
+
+    await writeAudit({
+      userId: user.id,
+      action: 'AUTH_LOGIN_OTP_SENT',
+      resource: 'otp',
+      status: 'SUCCESS',
+      ipAddress: ip,
+      userAgent,
+      metadata: { deviceId, deviceInfoSnippet: deviceInfo?.slice(0, 500) },
+    });
+  })();
+}
+
 export async function login(req: Request, res: Response): Promise<void> {
   const env = getEnv();
   const { email, password } = req.body as { email: string; password: string };
@@ -147,11 +199,16 @@ export async function login(req: Request, res: Response): Promise<void> {
     env.OTP_TTL_SECONDS,
   );
 
-  const sent = await sendOtpForUser({ phone: user.phone, email: user.email }, otp);
-  if (!sent) {
-    await redis.del(otpRedisKey(sessionId));
-    throw createError(502, 'Unable to send verification code. Try again later.');
-  }
+  const sessionKey = otpRedisKey(sessionId);
+  dispatchOtpAsync({
+    user: { id: user.id, phone: user.phone, email: user.email },
+    otp,
+    sessionKey,
+    ip,
+    userAgent,
+    deviceId,
+    deviceInfo,
+  });
 
   res.cookie(env.OTP_SESSION_COOKIE_NAME, sessionId, {
     ...cookieBase(),
@@ -160,7 +217,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   await writeAudit({
     userId: user.id,
-    action: 'AUTH_LOGIN_OTP_SENT',
+    action: 'AUTH_LOGIN_OTP_QUEUED',
     resource: 'otp',
     status: 'SUCCESS',
     ipAddress: ip,
